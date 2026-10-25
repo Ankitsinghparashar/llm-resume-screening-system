@@ -4,489 +4,667 @@ from docx import Document
 from io import BytesIO
 from llm_utils import get_llm_response
 
+
+# --------------------------------------------------
+# PAGE CONFIGURATION
+# --------------------------------------------------
+
 st.set_page_config(
-    page_title="ResumeIQ | AI Resume Analyzer",
-    page_icon="✦",
+    page_title="ResumeIQ | AI Resume Screening",
+    page_icon="📄",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ---------- DESIGN ----------
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-:root {
-    --purple: #8b5cf6;
-    --purple-dark: #6d28d9;
-    --ink: #201b35;
-    --muted: #79748c;
-    --border: #eae6f4;
-}
+# --------------------------------------------------
+# CUSTOM CSS
+# --------------------------------------------------
 
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-}
-
-.stApp {
-    background:
-        radial-gradient(ellipse at 5% 0%, #eee5ff 0%, transparent 35%),
-        radial-gradient(ellipse at 100% 100%, #f3e8ff 0%, transparent 32%),
-        #f9f8fc;
-    color: var(--ink);
-}
-
-.block-container {
-    max-width: 1450px;
-    padding-top: 2rem;
-    padding-bottom: 4rem;
-}
-
-section[data-testid="stSidebar"] {
-    background: #ffffff;
-    border-right: 1px solid var(--border);
-}
-
-section[data-testid="stSidebar"] h2 {
-    color: #7c3aed;
-    font-weight: 800;
-}
-
-.brand {
-    font-size: 30px;
-    font-weight: 800;
-    letter-spacing: -1.2px;
-    color: #29213f;
-}
-
-.brand span {
-    color: #8b5cf6;
-}
-
-.topline {
-    color: var(--muted);
-    font-size: 13px;
-    margin-top: 5px;
-}
-
-.hero {
-    background: linear-gradient(120deg, #21153e, #5425a7 65%, #895cf6);
-    border-radius: 24px;
-    padding: 34px;
-    color: white;
-    margin: 24px 0;
-    box-shadow: 0 18px 45px rgba(92, 54, 160, 0.18);
-}
-
-.hero h1 {
-    color: white;
-    font-size: 35px;
-    line-height: 1.2;
-    margin-bottom: 12px;
-}
-
-.hero p {
-    color: #e6ddff;
-    font-size: 15px;
-}
-
-.eyebrow {
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    font-size: 11px;
-    font-weight: 700;
-    color: #c4b5fd;
-    margin-bottom: 12px;
-}
-
-.panel {
-    background: rgba(255,255,255,.96);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 24px;
-    margin-bottom: 20px;
-    box-shadow: 0 8px 28px rgba(42, 25, 80, .04);
-}
-
-.panel-title {
-    font-size: 19px;
-    font-weight: 700;
-    color: var(--ink);
-    margin-bottom: 5px;
-}
-
-.panel-subtitle {
-    font-size: 13px;
-    color: var(--muted);
-    margin-bottom: 20px;
-}
-
-div[data-testid="stFileUploader"] {
-    background: #f8f5ff;
-    border: 1.5px dashed #b9a0fa;
-    border-radius: 15px;
-    padding: 12px;
-}
-
-div[data-testid="stTextArea"] textarea {
-    background: #fcfbff;
-    border: 1px solid #e5def4;
-    border-radius: 12px;
-    color: #29213f;
-    font-size: 14px;
-}
-
-.stButton > button {
-    background: linear-gradient(100deg, #8b5cf6, #6d28d9);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    padding: 13px 22px;
-    font-weight: 700;
-    min-height: 48px;
-    transition: .2s ease;
-}
-
-.stButton > button:hover {
-    background: linear-gradient(100deg, #7c3aed, #5b21b6);
-    color: white;
-    box-shadow: 0 8px 22px rgba(109,40,217,.25);
-}
-
-.metric-card {
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 18px;
-    padding: 22px;
-    margin-bottom: 15px;
-}
-
-.metric-label {
-    color: var(--muted);
-    font-size: 13px;
-    margin-bottom: 10px;
-}
-
-.metric-value {
-    color: #6d28d9;
-    font-size: 38px;
-    font-weight: 800;
-}
-
-.skill {
-    display: inline-block;
-    background: #eee7ff;
-    color: #6d28d9;
-    border: 1px solid #e2d6ff;
-    border-radius: 30px;
-    padding: 7px 12px;
-    margin: 4px;
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.missing {
-    background: #fff0f0;
-    color: #be3455;
-    border-color: #ffd9df;
-}
-
-.footer {
-    text-align: center;
-    color: #9891a8;
-    font-size: 12px;
-    margin-top: 45px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border);
-}
-
-#MainMenu, footer {
-    visibility: hidden;
-}
-
-@media (max-width: 768px) {
-    .hero { padding: 23px; }
-    .hero h1 { font-size: 27px; }
-    .panel { padding: 17px; }
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-# ---------- SIDEBAR ----------
-with st.sidebar:
-    st.markdown(
-        '<div class="brand">✦ Resume<span>IQ</span></div>',
-        unsafe_allow_html=True
-    )
-    st.caption("AI-powered recruitment workspace")
-    st.divider()
-
-    st.markdown("### WORKSPACE")
-    page = st.radio(
-        "Navigation",
-        ["Resume Analyzer", "How It Works", "About"],
-        label_visibility="collapsed"
-    )
-
-    st.divider()
-    st.markdown("### ANALYSIS ENGINE")
-    st.markdown("🧠 **LLM-powered evaluation**")
-    st.caption("Resume and job-description comparison")
-
-    st.info(
-        "Screening results are decision-support signals. "
-        "Always review candidates fairly."
-    )
-
-
-# ---------- HEADER ----------
 st.markdown(
-    '<div class="brand">Resume<span>IQ</span> '
-    '<span style="font-size:12px;letter-spacing:0;'
-    'background:#eee7ff;padding:6px 10px;border-radius:20px;">'
-    'AI ANALYZER</span></div>'
-    '<div class="topline">Intelligent resume and job compatibility analysis</div>',
+    """
+    <style>
+    @import url(
+        'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
+    );
+
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
+
+    .stApp {
+        background: linear-gradient(
+            135deg,
+            #faf8ff 0%,
+            #f5f1ff 50%,
+            #ffffff 100%
+        );
+    }
+
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+        max-width: 1200px;
+    }
+
+    .hero {
+        padding: 32px;
+        border-radius: 24px;
+        color: white;
+        background: linear-gradient(
+            120deg,
+            #7c3aed,
+            #5125bd
+        );
+        margin-bottom: 28px;
+        box-shadow: 0 12px 30px rgba(91, 33, 182, 0.16);
+    }
+
+    .hero h1 {
+        color: white;
+        font-size: 40px;
+        font-weight: 800;
+        margin-bottom: 10px;
+    }
+
+    .hero p {
+        color: #f1eaff;
+        font-size: 16px;
+        margin-bottom: 0;
+    }
+
+    .section-card {
+        background: white;
+        padding: 24px;
+        border: 1px solid #e8e0fa;
+        border-radius: 20px;
+        margin-bottom: 18px;
+        box-shadow: 0 5px 18px rgba(45, 25, 80, 0.04);
+    }
+
+    .section-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #28174c;
+        margin-bottom: 8px;
+    }
+
+    .muted {
+        color: #746b88;
+        font-size: 14px;
+    }
+
+    div.stButton > button {
+        width: 100%;
+        border: none;
+        border-radius: 12px;
+        padding: 14px 20px;
+        color: white;
+        font-weight: 700;
+        background: linear-gradient(
+            100deg,
+            #7c3aed,
+            #5b21b6
+        );
+        min-height: 50px;
+    }
+
+    div.stButton > button:hover {
+        color: white;
+        border: none;
+        background: linear-gradient(
+            100deg,
+            #6d28d9,
+            #4c1d95
+        );
+    }
+
+    div[data-testid="stMetric"] {
+        background: white;
+        border: 1px solid #e8e0fa;
+        border-radius: 16px;
+        padding: 18px;
+    }
+
+    [data-testid="stSidebar"] {
+        background: #ffffff;
+    }
+
+    .footer {
+        color: #8b829b;
+        text-align: center;
+        font-size: 12px;
+        padding: 25px 0;
+    }
+    </style>
+    """,
     unsafe_allow_html=True
 )
 
 
-if page == "Resume Analyzer":
+# --------------------------------------------------
+# RESUME TEXT EXTRACTION
+# --------------------------------------------------
 
-    st.markdown("""
-    <div class="hero">
-        <div class="eyebrow">AI-powered talent intelligence</div>
-        <h1>Find the right fit.<br>Understand every match.</h1>
-        <p>Analyze resume compatibility, identify skill gaps, and generate
-        actionable insights from your job requirements.</p>
-    </div>
-    """, unsafe_allow_html=True)
+def extract_resume_text(uploaded_file):
+    """Extract text from PDF, DOCX, or TXT files."""
 
-    resume_col, job_col = st.columns([1, 1], gap="large")
+    if uploaded_file is None:
+        return ""
 
-    with resume_col:
-        st.markdown("""
-        <div class="panel">
-            <div class="panel-title">📄 Upload your resume</div>
-            <div class="panel-subtitle">
-                PDF, Word document, or plain text
-            </div>
-        """, unsafe_allow_html=True)
+    filename = uploaded_file.name.lower()
 
-        uploaded_file = st.file_uploader(
-            "Choose a resume",
-            type=["pdf", "docx", "txt"],
-            help="Upload a text-based PDF, DOCX, or TXT file.",
-            label_visibility="collapsed"
+    try:
+        file_bytes = uploaded_file.getvalue()
+
+        if filename.endswith(".pdf"):
+            extracted_pages = []
+
+            with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+
+                    if page_text:
+                        extracted_pages.append(page_text)
+
+            return "\n".join(extracted_pages).strip()
+
+        elif filename.endswith(".docx"):
+            document = Document(BytesIO(file_bytes))
+
+            paragraphs = [
+                paragraph.text
+                for paragraph in document.paragraphs
+                if paragraph.text.strip()
+            ]
+
+            # Also extract text from tables.
+            for table in document.tables:
+                for row in table.rows:
+                    row_text = [
+                        cell.text.strip()
+                        for cell in row.cells
+                        if cell.text.strip()
+                    ]
+
+                    if row_text:
+                        paragraphs.append(" | ".join(row_text))
+
+            return "\n".join(paragraphs).strip()
+
+        elif filename.endswith(".txt"):
+            return file_bytes.decode(
+                "utf-8-sig",
+                errors="replace"
+            ).strip()
+
+        else:
+            return ""
+
+    except Exception as error:
+        st.error(
+            "The uploaded file could not be read. "
+            "Try another file or paste the resume text."
         )
 
-        st.markdown("</div>", unsafe_allow_html=True)
+        # Keep technical details in server logs.
+        print(f"Resume extraction error: {error}")
 
-        st.markdown("""
-        <div class="panel">
-            <div class="panel-title">Or paste resume text</div>
-            <div class="panel-subtitle">
-                You can paste your resume instead of uploading a file.
+        return ""
+
+
+# --------------------------------------------------
+# SIDEBAR NAVIGATION
+# --------------------------------------------------
+
+with st.sidebar:
+    st.markdown("## 📄 ResumeIQ")
+    st.caption("AI-Powered Resume Screening")
+
+    st.divider()
+
+    page = st.radio(
+        "NAVIGATION",
+        [
+            "Home",
+            "How It Works",
+            "About"
+        ],
+        index=0
+    )
+
+    st.divider()
+
+    st.markdown("### ✨ Features")
+    st.markdown(
+        """
+        - Resume file upload
+        - AI-powered job matching
+        - Missing skills analysis
+        - Match score and explanation
+        """
+    )
+
+    st.divider()
+
+    st.caption("Built with Streamlit and Gemini AI")
+
+
+# --------------------------------------------------
+# HOME PAGE
+# --------------------------------------------------
+
+if page == "Home":
+
+    st.markdown(
+        """
+        <div class="hero">
+            <h1>ResumeIQ 📄</h1>
+            <p>
+                Screen resumes intelligently.
+                Discover relevant skills, identify gaps,
+                and compare candidate experience with job requirements.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    left_col, right_col = st.columns(
+        [1, 1],
+        gap="large"
+    )
+
+    with left_col:
+
+        st.markdown(
+            """
+            <div class="section-card">
+                <div class="section-title">
+                    📤 Upload Your Resume
+                </div>
+                <div class="muted">
+                    Supported formats: PDF, DOCX and TXT
+                </div>
             </div>
-        """, unsafe_allow_html=True)
+            """,
+            unsafe_allow_html=True
+        )
+
+        uploaded_file = st.file_uploader(
+            "Choose a resume file",
+            type=["pdf", "docx", "txt"],
+            accept_multiple_files=False,
+            help="Upload a text-based resume for analysis."
+        )
+
+        st.markdown(
+            """
+            <div class="section-card">
+                <div class="section-title">
+                    📝 Or Paste Resume Text
+                </div>
+                <div class="muted">
+                    You can paste the complete resume instead of uploading a file.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
         pasted_resume = st.text_area(
             "Resume text",
-            height=220,
             placeholder="Paste the complete resume here...",
+            height=220,
             label_visibility="collapsed"
         )
 
-        st.markdown("</div>", unsafe_allow_html=True)
+    with right_col:
 
-    with job_col:
-        st.markdown("""
-        <div class="panel">
-            <div class="panel-title">💼 Job description</div>
-            <div class="panel-subtitle">
-                Include responsibilities, required skills, and experience.
+        st.markdown(
+            """
+            <div class="section-card">
+                <div class="section-title">
+                    🎯 Job Description
+                </div>
+                <div class="muted">
+                    Enter the responsibilities, required skills,
+                    qualifications and experience for the role.
+                </div>
             </div>
-        """, unsafe_allow_html=True)
+            """,
+            unsafe_allow_html=True
+        )
 
-        job_text = st.text_area(
+        job_description = st.text_area(
             "Job description",
-            height=390,
             placeholder=(
-                "Paste the job description here...\n\n"
-                "Example:\n"
-                "Role: Python Developer\n"
-                "Required skills: Python, SQL, REST APIs, Git\n"
-                "Experience: 0-2 years"
+                "Example: We are looking for a software developer "
+                "with Python, SQL, data structures, Git and problem-solving skills..."
             ),
+            height=300,
             label_visibility="collapsed"
         )
 
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    import pdfplumber
-
-def extract_pdf_text(uploaded_file):
-    try:
-        uploaded_file.seek(0)
-
-        with pdfplumber.open(uploaded_file) as pdf:
-            pages = []
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    pages.append(text)
-
-        return "\n".join(pages).strip()
-
-    except Exception as e:
-        print(f"PDF extraction error: {e}")
-        return ""
+        st.info(
+            "Tip: A detailed job description can help produce "
+            "a more useful comparison."
+        )
 
     st.write("")
 
-    left, center, right = st.columns([1, 2, 1])
+    analyze = st.button(
+        "✨ Analyze Resume",
+        use_container_width=True
+    )
 
-    with center:
-        analyze = st.button(
-            "✦  Analyze Resume",
-            use_container_width=True
-        )
+    # ----------------------------------------------
+    # ANALYSIS
+    # ----------------------------------------------
 
     if analyze:
-        try:
+
+        # Pasted text takes priority if both inputs are provided.
+        if pasted_resume.strip():
             resume_text = pasted_resume.strip()
 
-            if uploaded_file is not None:
-                resume_text = extract_resume_text(uploaded_file)
+        elif uploaded_file is not None:
+            resume_text = extract_resume_text(uploaded_file)
 
-            if not resume_text:
-                st.error(
-                    "Please upload a readable resume or paste its text."
-                )
-            elif not job_text.strip():
-                st.error("Please enter a job description.")
-            else:
+        else:
+            resume_text = ""
+
+        if not resume_text:
+            st.error(
+                "Please upload a readable resume or paste its text."
+            )
+
+        elif not job_description.strip():
+            st.error(
+                "Please enter the job description before analyzing."
+            )
+
+        elif len(resume_text) < 30:
+            st.error(
+                "The extracted resume text is too short. "
+                "Please upload another file or paste more resume content."
+            )
+
+        elif len(job_description.strip()) < 10:
+            st.error(
+                "Please provide a more detailed job description."
+            )
+
+        else:
+            try:
                 with st.spinner(
-                    "Analyzing skills and evaluating job compatibility..."
+                    "Analyzing the resume with Gemini AI..."
                 ):
                     result = get_llm_response(
                         resume_text,
-                        job_text.strip()
+                        job_description.strip()
                     )
 
-                score = max(
-                    0, min(100, int(result.get("match_score", 0)))
+                # Validate the response returned by llm_utils.py.
+                if not isinstance(result, dict):
+                    raise ValueError(
+                        "The AI returned an unexpected response format."
+                    )
+
+                score = int(result.get("match_score", 0))
+                score = max(0, min(100, score))
+
+                missing_skills = result.get(
+                    "missing_skills",
+                    []
                 )
-                missing_skills = result.get("missing_skills", [])
+
                 explanation = result.get(
-                    "explanation", "No explanation was returned."
+                    "explanation",
+                    "No explanation was provided."
                 )
 
-                st.markdown("## Your analysis")
+                if not isinstance(missing_skills, list):
+                    missing_skills = []
+
+                st.divider()
+
+                st.markdown("## 📊 Screening Results")
+
                 st.caption(
-                    "Review the score alongside the evidence and skill gaps."
+                    "AI-generated results for review. "
+                    "These are not a hiring decision."
                 )
 
-                score_col, gap_col = st.columns(2, gap="large")
+                metric1, metric2, metric3 = st.columns(3)
 
-                with score_col:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">RESUME MATCH SCORE</div>
-                        <div class="metric-value">{score}%</div>
-                        <div style="background:#eee7ff;border-radius:20px;
-                                    height:9px;margin-top:15px;">
-                            <div style="background:linear-gradient(90deg,
-                                        #a78bfa,#6d28d9);
-                                        width:{score}%;height:9px;
-                                        border-radius:20px;"></div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                with metric1:
+                    st.metric(
+                        "Resume Match",
+                        f"{score}%"
+                    )
 
-                with gap_col:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">SKILL GAPS IDENTIFIED</div>
-                        <div class="metric-value">{len(missing_skills)}</div>
-                        <div style="color:#79748c;font-size:13px;">
-                            Skills to review against the job requirements
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                with metric2:
+                    st.metric(
+                        "Missing Skills",
+                        len(missing_skills)
+                    )
 
-                st.markdown(
-                    '<div class="panel"><div class="panel-title">'
-                    '🧠 AI evaluation</div></div>',
-                    unsafe_allow_html=True
-                )
-                st.write(explanation)
+                with metric3:
+                    if score >= 80:
+                        category = "Strong Match"
+                    elif score >= 60:
+                        category = "Moderate Match"
+                    else:
+                        category = "Low Match"
 
-                st.markdown("""
-                <div class="panel">
-                    <div class="panel-title">🎯 Missing or unverified skills</div>
-                    <div class="panel-subtitle">
-                        Confirm these gaps manually before making a decision.
-                    </div>
-                """, unsafe_allow_html=True)
+                    st.metric(
+                        "Match Category",
+                        category
+                    )
+
+                st.progress(score / 100)
+
+                st.markdown("### 🧠 AI Explanation")
+
+                st.write(str(explanation))
+
+                st.markdown("### 🛠️ Missing or Unidentified Skills")
 
                 if missing_skills:
                     for skill in missing_skills:
-                        st.markdown(
-                            f'<span class="skill missing">'
-                            f'{skill}</span>',
-                            unsafe_allow_html=True
-                        )
+                        st.markdown(f"- {skill}")
                 else:
-                    st.success("No missing skills were reported.")
+                    st.success(
+                        "No missing skills were identified by the AI. "
+                        "Review the resume and job requirements manually."
+                    )
 
-                st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown("### 📋 Screening Summary")
 
-                st.download_button(
-                    "⬇ Download analysis",
-                    data=(
-                        f"RESUME MATCH SCORE: {score}/100\n\n"
-                        f"EXPLANATION:\n{explanation}\n\n"
-                        f"MISSING SKILLS:\n"
-                        + "\n".join(f"- {s}" for s in missing_skills)
-                    ),
-                    file_name="resume_analysis.txt",
-                    mime="text/plain",
-                    use_container_width=True
+                if score >= 80:
+                    st.success(
+                        "The resume appears to align well with "
+                        "the supplied job description."
+                    )
+
+                elif score >= 60:
+                    st.warning(
+                        "The resume shows some alignment. "
+                        "Review the identified gaps and relevant experience."
+                    )
+
+                else:
+                    st.info(
+                        "The resume may have limited alignment with "
+                        "the supplied job description. Verify the "
+                        "requirements and candidate qualifications."
+                    )
+
+                # Save results in the current Streamlit session.
+                st.session_state["resumeiq_results"] = {
+                    "score": score,
+                    "missing_skills": missing_skills,
+                    "explanation": str(explanation)
+                }
+
+                st.caption(
+                    "The match score is an AI estimate, not a "
+                    "validated probability of job performance. "
+                    "Verify all results before making decisions."
                 )
 
-        except Exception as exc:
-            st.error(
-                "The analysis could not be completed. "
-                "Check the app logs for the underlying error."
-            )
-            st.caption(f"Error type: {type(exc).__name__}")
+            except Exception as error:
+                print(f"Resume analysis error: {error}")
 
-    st.markdown("""
-    <div class="footer">
-        ResumeIQ · AI-assisted resume analysis<br>
-        Use as a screening aid, not as the sole basis for hiring decisions.
-    </div>
-    """, unsafe_allow_html=True)
+                st.error(
+                    "The analysis could not be completed. "
+                    "Check your Gemini API configuration and app logs."
+                )
 
+                st.caption(
+                    "Check that GEMINI_API_KEY is configured in "
+                    "Streamlit Secrets, the selected Gemini model is "
+                    "available, and your API quota has not been exceeded."
+                )
+
+
+# --------------------------------------------------
+# HOW IT WORKS PAGE
+# --------------------------------------------------
 
 elif page == "How It Works":
-    st.markdown("## How ResumeIQ works")
-    st.markdown("""
-    1. **Upload:** Provide a PDF, DOCX, or TXT resume.
-    2. **Describe the role:** Paste the relevant job description.
-    3. **Evaluate:** The configured LLM compares the resume with the role.
-    4. **Review:** Examine the match score, missing skills, and explanation.
-    5. **Decide fairly:** Verify the results and make decisions using human review.
-    """)
+
+    st.markdown(
+        """
+        <div class="hero">
+            <h1>How ResumeIQ Works</h1>
+            <p>
+                A simple workflow for comparing resumes
+                with job requirements.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    steps = [
+        (
+            "01",
+            "Upload",
+            "Upload a PDF, DOCX or TXT resume, "
+            "or paste resume text."
+        ),
+        (
+            "02",
+            "Describe the Role",
+            "Enter the job description, including "
+            "relevant qualifications and skills."
+        ),
+        (
+            "03",
+            "Analyze",
+            "Gemini AI compares the resume content "
+            "with the supplied job requirements."
+        ),
+        (
+            "04",
+            "Review",
+            "Examine the match score, missing skills "
+            "and AI-generated explanation."
+        ),
+        (
+            "05",
+            "Make an Informed Decision",
+            "Verify the findings and use human judgment "
+            "rather than relying on the AI score alone."
+        )
+    ]
+
+    for number, title, description in steps:
+        st.markdown(
+            f"""
+            <div class="section-card">
+                <h3>{number} · {title}</h3>
+                <p class="muted">{description}</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    st.warning(
+        "ResumeIQ provides decision support only. "
+        "It should not be used as the sole basis for hiring decisions."
+    )
+
+
+# --------------------------------------------------
+# ABOUT PAGE
+# --------------------------------------------------
 
 elif page == "About":
-    st.markdown("## About ResumeIQ")
-    st.write(
-        "ResumeIQ is an LLM-based resume screening project designed "
-        "to assist with resume-to-job compatibility analysis."
+
+    st.markdown(
+        """
+        <div class="hero">
+            <h1>About ResumeIQ</h1>
+            <p>
+                An LLM-based resume screening system
+                built to support job-requirement comparisons.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
-    st.info(
-        "Results depend on resume quality, job requirements, and the "
-        "configured language model. Scores are estimates, not guarantees."
+
+    st.markdown(
+        """
+        <div class="section-card">
+            <h3>🎯 Project Objective</h3>
+            <p>
+                ResumeIQ explores how large language models can help
+                compare resume content with job descriptions,
+                identify relevant skills, and summarize potential gaps.
+            </p>
+        </div>
+
+        <div class="section-card">
+            <h3>⚙️ Technology Stack</h3>
+            <ul>
+                <li>Python</li>
+                <li>Streamlit</li>
+                <li>Google Gemini API</li>
+                <li>pdfplumber for PDF text extraction</li>
+                <li>python-docx for DOCX text extraction</li>
+            </ul>
+        </div>
+
+        <div class="section-card">
+            <h3>🔒 Privacy and Responsible Use</h3>
+            <p>
+                Resume documents can contain personal information.
+                Use only authorized documents, protect API credentials,
+                and review the API provider's data-use terms.
+                AI results may be incomplete or inaccurate and
+                must be verified by a human reviewer.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
+
+
+# --------------------------------------------------
+# FOOTER
+# --------------------------------------------------
+
+st.markdown(
+    """
+    <div class="footer">
+        ResumeIQ · LLM-Based Resume Screening System
+        <br>
+        AI-assisted screening for human review
+    </div>
+    """,
+    unsafe_allow_html=True
+)
