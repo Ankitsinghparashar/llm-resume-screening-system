@@ -2,6 +2,7 @@ import streamlit as st
 import pdfplumber
 from docx import Document
 from io import BytesIO
+from html import escape
 from llm_utils import get_llm_response
 
 
@@ -10,7 +11,7 @@ from llm_utils import get_llm_response
 # =========================================================
 
 st.set_page_config(
-    page_title="ResumeIQ | Recruitment Dashboard",
+    page_title="ResumeIQ | AI Recruitment",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -18,13 +19,32 @@ st.set_page_config(
 
 
 # =========================================================
-# CUSTOM CSS
+# SESSION STATE
+# =========================================================
+
+defaults = {
+    "analysis_result": None,
+    "analysis_resume_name": "",
+    "analysis_job_title": "",
+    "analysis_count": 0,
+    "history": [],
+}
+
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+
+
+# =========================================================
+# CSS
 # =========================================================
 
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    @import url(
+      'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
+    );
 
     :root {
         --primary: #3977e8;
@@ -32,9 +52,7 @@ st.markdown(
         --background: #f5f7fb;
         --text: #182230;
         --muted: #748094;
-        --border: #e7ebf2;
-        --success: #16845b;
-        --danger: #d94b56;
+        --border: #e5eaf2;
     }
 
     html, body, [class*="css"] {
@@ -45,65 +63,47 @@ st.markdown(
         background: var(--background);
     }
 
-    [data-testid="stHeader"] {
-        background: transparent;
-    }
-
     [data-testid="stSidebar"] {
-        background: #ffffff;
+        background: white;
         border-right: 1px solid var(--border);
     }
 
-    [data-testid="stSidebar"] > div:first-child {
-        padding-top: 1.2rem;
-    }
-
     .brand {
-        font-size: 25px;
+        font-size: 27px;
         font-weight: 800;
-        color: #182230;
         letter-spacing: -1px;
-        margin-bottom: 4px;
+        color: #182230;
     }
 
     .brand span {
         color: var(--primary);
     }
 
-    .brand-subtitle {
+    .muted {
         color: var(--muted);
         font-size: 12px;
-        margin-bottom: 30px;
-    }
-
-    .sidebar-label {
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 1.4px;
-        color: #a0a8b7;
-        margin: 24px 0 10px 5px;
     }
 
     .page-title {
+        color: var(--text);
         font-size: 29px;
         font-weight: 800;
         letter-spacing: -1px;
-        color: var(--text);
         margin-bottom: 4px;
     }
 
     .page-subtitle {
-        font-size: 13px;
         color: var(--muted);
-        margin-bottom: 25px;
+        font-size: 13px;
+        margin-bottom: 24px;
     }
 
-    .top-badge {
+    .badge {
         display: inline-block;
-        background: #e9f2ff;
-        color: #2865c9;
+        padding: 8px 12px;
         border-radius: 20px;
-        padding: 7px 12px;
+        background: #e9f1ff;
+        color: #2865c9;
         font-size: 11px;
         font-weight: 700;
     }
@@ -111,113 +111,77 @@ st.markdown(
     .metric-card {
         background: white;
         border: 1px solid var(--border);
-        border-radius: 15px;
-        padding: 19px 20px;
-        min-height: 120px;
+        border-radius: 14px;
+        padding: 19px;
+        min-height: 116px;
         box-shadow: 0 2px 8px rgba(20, 35, 60, 0.025);
     }
 
     .metric-label {
         color: var(--muted);
-        font-size: 12px;
-        font-weight: 500;
+        font-size: 11px;
+        font-weight: 600;
         margin-bottom: 14px;
     }
 
     .metric-value {
-        font-size: 30px;
-        line-height: 1.1;
-        font-weight: 800;
         color: var(--text);
-        letter-spacing: -1px;
+        font-size: 28px;
+        font-weight: 800;
+        line-height: 1.2;
     }
 
     .metric-note {
-        font-size: 11px;
         color: var(--muted);
-        margin-top: 8px;
+        font-size: 11px;
+        margin-top: 7px;
     }
 
     .section-card {
-        background: #ffffff;
+        background: white;
         border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 23px;
-        margin-bottom: 18px;
+        border-radius: 15px;
+        padding: 21px;
+        margin-bottom: 16px;
         box-shadow: 0 2px 8px rgba(20, 35, 60, 0.025);
     }
 
     .section-title {
-        font-size: 17px;
+        font-size: 16px;
         font-weight: 700;
         color: var(--text);
         margin-bottom: 5px;
     }
 
-    .section-description {
+    .section-subtitle {
         color: var(--muted);
         font-size: 12px;
-        margin-bottom: 20px;
+        margin-bottom: 18px;
     }
 
-    .result-score {
-        font-size: 54px;
+    .score {
+        font-size: 48px;
         font-weight: 800;
         letter-spacing: -2px;
         color: var(--primary);
-        line-height: 1.2;
-    }
-
-    .skill-chip {
-        display: inline-block;
-        padding: 7px 11px;
-        border-radius: 8px;
-        background: #fff0f0;
-        color: #bd4149;
-        border: 1px solid #ffdddd;
-        font-size: 12px;
-        margin: 4px 4px 4px 0;
-    }
-
-    .success-chip {
-        display: inline-block;
-        padding: 7px 11px;
-        border-radius: 8px;
-        background: #e8f7ef;
-        color: #16845b;
-        border: 1px solid #d2efdf;
-        font-size: 12px;
-        margin: 4px 4px 4px 0;
-    }
-
-    .info-note {
-        background: #edf4ff;
-        border-left: 3px solid var(--primary);
-        border-radius: 7px;
-        padding: 12px 14px;
-        font-size: 12px;
-        color: #425778;
-        margin-top: 15px;
     }
 
     .footer {
         text-align: center;
-        color: #99a2b1;
+        padding: 28px 0 12px 0;
+        color: #98a1b1;
         font-size: 11px;
-        padding: 30px 0 12px 0;
     }
 
     div.stButton > button {
         border-radius: 9px;
         min-height: 43px;
         font-weight: 600;
-        border: 1px solid var(--border);
-        transition: 0.2s;
     }
 
     div.stButton > button[kind="primary"] {
         background: var(--primary);
-        border: 1px solid var(--primary);
+        border-color: var(--primary);
         color: white;
     }
 
@@ -231,29 +195,16 @@ st.markdown(
         border-radius: 10px;
     }
 
-    div[data-testid="stTextArea"] textarea {
-        border-radius: 10px;
-        border-color: #e1e6ef;
-        background: #fafbfe;
-        font-size: 13px;
-    }
-
+    div[data-testid="stTextArea"] textarea,
     div[data-testid="stTextInput"] input {
+        background: #fafbfe;
         border-radius: 9px;
+        border-color: #e1e6ef;
+        font-size: 13px;
     }
 
     hr {
         border-color: var(--border);
-    }
-
-    @media (max-width: 768px) {
-        .page-title {
-            font-size: 24px;
-        }
-
-        .result-score {
-            font-size: 42px;
-        }
     }
     </style>
     """,
@@ -262,55 +213,39 @@ st.markdown(
 
 
 # =========================================================
-# SESSION STATE
-# =========================================================
-
-if "analysis_result" not in st.session_state:
-    st.session_state.analysis_result = None
-
-if "analysis_resume_name" not in st.session_state:
-    st.session_state.analysis_resume_name = ""
-
-if "analysis_job_title" not in st.session_state:
-    st.session_state.analysis_job_title = ""
-
-
-# =========================================================
-# RESUME TEXT EXTRACTION
+# RESUME EXTRACTION
 # =========================================================
 
 def extract_resume_text(uploaded_file):
-    """Extract text from PDF, DOCX, or TXT files."""
+    """Extract readable text from PDF, DOCX, or TXT."""
 
     if uploaded_file is None:
         return ""
 
     filename = uploaded_file.name.lower()
-    uploaded_file.seek(0)
 
     try:
         if filename.endswith(".pdf"):
-            pages_text = []
+            uploaded_file.seek(0)
+            pages = []
 
             with pdfplumber.open(uploaded_file) as pdf:
                 for page in pdf.pages:
-                    page_text = page.extract_text()
+                    text = page.extract_text()
+                    if text:
+                        pages.append(text)
 
-                    if page_text:
-                        pages_text.append(page_text)
-
-            return "\n".join(pages_text).strip()
+            return "\n".join(pages).strip()
 
         elif filename.endswith(".docx"):
             document = Document(BytesIO(uploaded_file.getvalue()))
 
             paragraphs = [
-                paragraph.text.strip()
-                for paragraph in document.paragraphs
-                if paragraph.text.strip()
+                p.text.strip()
+                for p in document.paragraphs
+                if p.text.strip()
             ]
 
-            # Also extract text from tables.
             for table in document.tables:
                 for row in table.rows:
                     row_text = [
@@ -318,7 +253,6 @@ def extract_resume_text(uploaded_file):
                         for cell in row.cells
                         if cell.text.strip()
                     ]
-
                     if row_text:
                         paragraphs.append(" | ".join(row_text))
 
@@ -327,21 +261,18 @@ def extract_resume_text(uploaded_file):
         elif filename.endswith(".txt"):
             return uploaded_file.getvalue().decode(
                 "utf-8-sig",
-                errors="replace"
+                errors="replace",
             ).strip()
 
-        else:
-            raise ValueError(
-                "Unsupported file format. Upload a PDF, DOCX, or TXT file."
-            )
+        raise ValueError("Please upload a PDF, DOCX, or TXT file.")
 
     except ValueError:
         raise
 
     except Exception as error:
         raise ValueError(
-            f"Could not read {uploaded_file.name}. "
-            "Try another file or paste the resume text."
+            "The file could not be read. Try another file or paste "
+            "the resume text."
         ) from error
 
 
@@ -350,25 +281,24 @@ def extract_resume_text(uploaded_file):
 # =========================================================
 
 with st.sidebar:
-
     st.markdown(
-        """
-        <div class="brand">Resume<span>IQ</span></div>
-        <div class="brand-subtitle">
-            AI-powered recruitment assistant
-        </div>
-        """,
+        '<div class="brand">Resume<span>IQ</span></div>',
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div class="sidebar-label">WORKSPACE</div>',
-                unsafe_allow_html=True)
+    st.markdown(
+        '<div class="muted">AI-powered recruitment assistant</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("##### WORKSPACE")
 
     page = st.radio(
         "Navigation",
         [
             "Dashboard",
-            "Resume Screening",
+            "Screening History",
             "How It Works",
             "About",
         ],
@@ -376,25 +306,19 @@ with st.sidebar:
     )
 
     st.markdown("---")
+    st.markdown("**AI Screening Assistant**")
 
-    st.markdown(
-        """
-        <div style="font-size:12px;color:#748094;line-height:1.8;">
-            <b style="color:#182230;">AI Screening Assistant</b><br>
-            Compare resumes with job requirements and identify potential
-            skill gaps.
-        </div>
-        """,
-        unsafe_allow_html=True,
+    st.caption(
+        "Compare resumes with job requirements and identify "
+        "potential skill gaps."
     )
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    st.caption("ResumeIQ · Version 1.0")
+    st.markdown("---")
+    st.caption("ResumeIQ · Version 2.0")
 
 
 # =========================================================
-# DASHBOARD PAGE
+# DASHBOARD
 # =========================================================
 
 if page == "Dashboard":
@@ -409,62 +333,72 @@ if page == "Dashboard":
 
         st.markdown(
             '<div class="page-subtitle">'
-            'Understand candidate fit and make informed screening decisions.'
+            'Screen candidates and understand job-related skill alignment.'
             '</div>',
             unsafe_allow_html=True,
         )
 
     with header_right:
         st.markdown(
-            '<div style="text-align:right;padding-top:8px;">'
-            '<span class="top-badge">● AI ASSISTED</span>'
+            '<div style="text-align:right">'
+            '<span class="badge">● AI ASSISTED</span>'
             '</div>',
             unsafe_allow_html=True,
         )
 
-    # Dashboard metrics
     result = st.session_state.analysis_result
 
     if result:
-        match_score = result["match_score"]
-        missing_skills = result["missing_skills"]
+        latest_score = result["match_score"]
+        latest_gaps = len(result["missing_skills"])
 
-        score_label = f"{match_score}%"
-        skills_label = str(len(missing_skills))
-        status_label = (
-            "Strong match" if match_score >= 75
-            else "Moderate match" if match_score >= 50
-            else "Lower match"
-        )
+        if latest_score >= 75:
+            status = "Strong match"
+        elif latest_score >= 50:
+            status = "Partial match"
+        else:
+            status = "Lower match"
     else:
-        score_label = "—"
-        skills_label = "—"
-        status_label = "Awaiting analysis"
+        latest_score = None
+        latest_gaps = 0
+        status = "Awaiting analysis"
 
-    metric_columns = st.columns(4)
-
+    # Metrics
     metrics = [
-        ("RESUMES ANALYZED", "1" if result else "0",
-         "In this session"),
-        ("LATEST MATCH SCORE", score_label,
-         "AI-generated estimate"),
-        ("SKILL GAPS IDENTIFIED", skills_label,
-         "From the latest analysis"),
-        ("SCREENING STATUS", status_label,
-         "Based on available evidence"),
+        (
+            "RESUMES ANALYZED",
+            str(st.session_state.analysis_count),
+            "In this session",
+        ),
+        (
+            "LATEST MATCH SCORE",
+            f"{latest_score}%" if latest_score is not None else "—",
+            "AI-generated estimate",
+        ),
+        (
+            "SKILL GAPS IDENTIFIED",
+            str(latest_gaps) if result else "—",
+            "From the latest analysis",
+        ),
+        (
+            "SCREENING STATUS",
+            status,
+            "Based on available evidence",
+        ),
     ]
 
-    for column, metric in zip(metric_columns, metrics):
-        label, value, note = metric
+    columns = st.columns(4)
 
+    for column, (label, value, note) in zip(columns, metrics):
         with column:
+            font_size = "19px" if len(value) > 13 else "28px"
+
             st.markdown(
                 f"""
                 <div class="metric-card">
                     <div class="metric-label">{label}</div>
-                    <div class="metric-value"
-                         style="font-size:{'21px' if len(value) > 12 else '30px'}">
-                        {value}
+                    <div class="metric-value" style="font-size:{font_size}">
+                        {escape(value)}
                     </div>
                     <div class="metric-note">{note}</div>
                 </div>
@@ -474,193 +408,69 @@ if page == "Dashboard":
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    left, right = st.columns([1.25, 1])
-
-    with left:
-        st.markdown(
-            """
-            <div class="section-card">
-                <div class="section-title">Candidate Screening</div>
-                <div class="section-description">
-                    Start a new resume evaluation.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.write(
-            "Compare a candidate's resume with a job description "
-            "to identify relevant experience and potential skill gaps."
-        )
-
-        if st.button(
-            "＋ Start Resume Screening",
-            type="primary",
-            use_container_width=True,
-        ):
-            st.session_state.navigate_to_screening = True
-            st.rerun()
-
-    with right:
-        st.markdown(
-            """
-            <div class="section-card">
-                <div class="section-title">Latest Analysis</div>
-                <div class="section-description">
-                    Most recent screening result.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        if result:
-            st.metric("Match score", f"{result['match_score']}%")
-
-            st.progress(result["match_score"] / 100)
-
-            st.caption(
-                f"Resume: {st.session_state.analysis_resume_name}"
-            )
-
-            st.caption(
-                f"Role: {st.session_state.analysis_job_title}"
-            )
-
-            if st.button(
-                "View Detailed Results",
-                use_container_width=True,
-            ):
-                st.session_state.show_latest_result = True
-                st.rerun()
-
-        else:
-            st.info(
-                "No screening results yet. Start a new analysis "
-                "to see candidate insights here."
-            )
-
-    if st.session_state.get("show_latest_result") and result:
-        st.markdown("---")
-        st.markdown("### Latest Screening Results")
-
-        st.write(result["explanation"])
-
-        if result["missing_skills"]:
-            st.markdown("**Potential skill gaps**")
-
-            for skill in result["missing_skills"]:
-                st.markdown(
-                    f'<span class="skill-chip">{skill}</span>',
-                    unsafe_allow_html=True,
-                )
+    # -----------------------------------------------------
+    # RESUME UPLOAD + JOB DESCRIPTION ON THE DASHBOARD
+    # -----------------------------------------------------
 
     st.markdown(
         """
-        <div class="info-note">
-            AI-generated screening results are estimates. Review the
-            underlying resume and verify job-related qualifications
-            before making hiring decisions.
+        <div class="section-card">
+            <div class="section-title">New Candidate Screening</div>
+            <div class="section-subtitle">
+                Step 1: Upload a resume. Step 2: Enter the job requirements.
+                Step 3: Analyze the candidate.
+            </div>
         </div>
         """,
-        unsafe_allow_html=True,
-    )
-
-
-# =========================================================
-# RESUME SCREENING PAGE
-# =========================================================
-
-elif page == "Resume Screening":
-
-    st.markdown(
-        '<div class="page-title">Resume Screening</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        '<div class="page-subtitle">'
-        'Upload a candidate resume, enter the job requirements, '
-        'and generate an AI-assisted comparison.'
-        '</div>',
         unsafe_allow_html=True,
     )
 
     resume_column, job_column = st.columns(2, gap="large")
 
     with resume_column:
-
-        st.markdown(
-            """
-            <div class="section-card">
-                <div class="section-title">01 · Candidate Resume</div>
-                <div class="section-description">
-                    Upload a PDF, DOCX, or TXT file.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.markdown("### 📄 Candidate Resume")
 
         uploaded_file = st.file_uploader(
-            "Choose a resume file",
+            "Upload resume",
             type=["pdf", "docx", "txt"],
-            help="For best results, use a PDF with selectable text.",
-            key="resume_uploader",
+            help="Supported formats: PDF, DOCX, and TXT.",
+            key="dashboard_resume_upload",
         )
 
-        st.markdown("**Or paste resume text**")
-
         pasted_resume = st.text_area(
-            "Resume content",
+            "Or paste resume text",
             placeholder=(
-                "Paste the candidate's resume here...\n\n"
-                "Include skills, education, experience, and projects."
+                "Paste the complete resume here...\n\n"
+                "Include skills, education, projects, and experience."
             ),
-            height=230,
-            label_visibility="collapsed",
-            key="resume_text_input",
+            height=190,
+            key="dashboard_resume_text",
         )
 
     with job_column:
-
-        st.markdown(
-            """
-            <div class="section-card">
-                <div class="section-title">02 · Job Requirements</div>
-                <div class="section-description">
-                    Describe the role and required qualifications.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.markdown("### 🎯 Job Requirements")
 
         job_title = st.text_input(
             "Job title",
             placeholder="e.g. Software Developer",
-            key="job_title_input",
+            key="dashboard_job_title",
         )
 
         job_description = st.text_area(
             "Job description",
             placeholder=(
-                "Enter the job responsibilities, required skills, "
-                "qualifications, and experience...\n\n"
-                "Example: We need a software developer with Python, "
-                "SQL, Git, data structures, and problem-solving skills."
+                "Describe the role, responsibilities, required skills, "
+                "qualifications, and experience..."
             ),
-            height=300,
-            key="job_description_input",
+            height=190,
+            key="dashboard_job_description",
         )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    button_column, _ = st.columns([1, 1])
+    _, button_column, _ = st.columns([1, 2, 1])
 
     with button_column:
-
         analyze_button = st.button(
             "✦ Analyze Resume",
             type="primary",
@@ -668,121 +478,125 @@ elif page == "Resume Screening":
         )
 
     # -----------------------------------------------------
-    # RUN ANALYSIS
+    # ANALYZE RESUME
     # -----------------------------------------------------
 
     if analyze_button:
 
         try:
-            # Prefer pasted text when provided.
-            if pasted_resume and pasted_resume.strip():
+            if pasted_resume.strip():
                 resume_text = pasted_resume.strip()
+                resume_name = "Pasted resume"
 
             elif uploaded_file is not None:
                 with st.spinner("Extracting resume text..."):
                     resume_text = extract_resume_text(uploaded_file)
 
-            else:
-                resume_text = ""
+                resume_name = uploaded_file.name
 
-            if not resume_text:
+            else:
                 st.error(
-                    "Please upload a readable resume or paste its text."
+                    "Please upload a resume or paste the resume text."
+                )
+                st.stop()
+
+            if not resume_text or len(resume_text) < 30:
+                st.error(
+                    "No readable resume text was found. If this is a "
+                    "scanned PDF, use OCR to extract the text or paste "
+                    "the resume text manually."
                 )
                 st.stop()
 
             if not job_description.strip():
-                st.error("Please enter the job description.")
-                st.stop()
-
-            if len(resume_text) < 30:
-                st.error(
-                    "The resume contains too little readable text. "
-                    "Try another file or paste the complete resume."
-                )
+                st.error("Please enter a job description.")
                 st.stop()
 
             with st.spinner(
-                "Analyzing the resume with AI. This may take a moment..."
+                "Analyzing the candidate with Groq AI..."
             ):
-                result = get_llm_response(
+                ai_result = get_llm_response(
                     resume_text,
                     job_description.strip(),
                 )
 
-            if not isinstance(result, dict):
+            if not isinstance(ai_result, dict):
                 raise ValueError(
-                    "The AI response has an unexpected format."
+                    "The AI returned an unexpected result format."
                 )
 
-            score = int(result.get("match_score", 0))
+            score = int(ai_result.get("match_score", 0))
             score = max(0, min(100, score))
 
-            missing_skills = result.get("missing_skills", [])
+            missing_skills = ai_result.get("missing_skills", [])
 
             if not isinstance(missing_skills, list):
                 missing_skills = []
 
-            explanation = str(result.get("explanation", ""))
+            explanation = str(ai_result.get("explanation", ""))
 
-            st.session_state.analysis_result = {
+            cleaned_result = {
                 "match_score": score,
                 "missing_skills": missing_skills,
                 "explanation": explanation,
             }
 
-            st.session_state.analysis_resume_name = (
-                uploaded_file.name
-                if uploaded_file is not None
-                else "Pasted resume"
-            )
-
+            st.session_state.analysis_result = cleaned_result
+            st.session_state.analysis_resume_name = resume_name
             st.session_state.analysis_job_title = (
                 job_title.strip() or "Unspecified role"
             )
+            st.session_state.analysis_count += 1
 
-            st.session_state.show_latest_result = False
+            st.session_state.history.insert(
+                0,
+                {
+                    "resume_name": resume_name,
+                    "job_title": job_title.strip() or "Unspecified role",
+                    "match_score": score,
+                    "missing_skills": missing_skills,
+                    "explanation": explanation,
+                },
+            )
 
-            st.success("Resume analysis completed successfully!")
+            st.success("Resume analysis completed!")
 
         except Exception as error:
-            # Avoid exposing API keys or internal credentials.
-            error_text = str(error)
+            error_text = str(error).lower()
 
-            if "429" in error_text or "RESOURCE_EXHAUSTED" in error_text:
+            if (
+                "429" in error_text
+                or "resource_exhausted" in error_text
+                or "rate limit" in error_text
+            ):
                 st.error(
-                    "The AI service rate limit has been reached. "
-                    "Please wait before trying again."
+                    "The Groq API rate limit has been reached. "
+                    "Wait briefly before trying again."
                 )
 
-            elif "503" in error_text or "UNAVAILABLE" in error_text:
+            elif "groq_api_key" in error_text:
                 st.error(
-                    "The AI service is temporarily unavailable. "
-                    "Please try again later."
+                    "The Groq API key is missing. Check your "
+                    "Streamlit Secrets settings."
                 )
 
-            elif "GROQ_API_KEY" in error_text:
+            elif (
+                "401" in error_text
+                or "invalid_api_key" in error_text
+                or "authentication" in error_text
+            ):
                 st.error(
-                    "The Groq API key is missing. "
-                    "Check your Streamlit Secrets configuration."
-                )
-
-            elif "401" in error_text or "invalid_api_key" in error_text.lower():
-                st.error(
-                    "The AI provider rejected the API key. "
-                    "Check your Streamlit Secrets."
+                    "Groq rejected the API key. Verify the key in "
+                    "Streamlit Secrets."
                 )
 
             else:
                 st.error(
-                    "Resume analysis failed. Check the app logs "
-                    "for the underlying error."
+                    "Resume analysis failed. Check the Streamlit "
+                    "app logs for the underlying error."
                 )
 
-            print(
-                f"Resume analysis error: "
-                f"{type(error).__name__}: {error}"
-            )
+            print(f"Resume analysis error: {type(error).__name__}: {error}")
 
     # -----------------------------------------------------
     # RESULTS
@@ -791,48 +605,40 @@ elif page == "Resume Screening":
     result = st.session_state.analysis_result
 
     if result:
-
         st.markdown("---")
 
         st.markdown(
-            '<div class="page-title">Screening Results</div>',
+            '<div class="page-title">Candidate Analysis</div>',
             unsafe_allow_html=True,
         )
 
         st.markdown(
             '<div class="page-subtitle">'
-            'Review the AI-generated comparison and skill-gap analysis.'
+            'Review the estimated match, potential skill gaps, '
+            'and AI-generated explanation.'
             '</div>',
             unsafe_allow_html=True,
         )
 
-        score = result["match_score"]
-
         result_left, result_right = st.columns([1, 2], gap="large")
 
         with result_left:
-
             st.markdown(
-                """
-                <div class="section-card">
-                    <div class="section-title">Resume Match</div>
-                    <div class="section-description">
-                        Estimated alignment with the job description.
-                    </div>
-                """,
+                '<div class="section-card">'
+                '<div class="section-title">Resume Match Score</div>',
                 unsafe_allow_html=True,
             )
 
             st.markdown(
-                f'<div class="result-score">{score}%</div>',
+                f'<div class="score">{result["match_score"]}%</div>',
                 unsafe_allow_html=True,
             )
 
-            st.progress(score / 100)
+            st.progress(result["match_score"] / 100)
 
-            if score >= 75:
+            if result["match_score"] >= 75:
                 st.success("Strong alignment")
-            elif score >= 50:
+            elif result["match_score"] >= 50:
                 st.warning("Partial alignment")
             else:
                 st.info("Lower alignment")
@@ -840,21 +646,17 @@ elif page == "Resume Screening":
             st.markdown("</div>", unsafe_allow_html=True)
 
         with result_right:
-
             st.markdown(
                 """
                 <div class="section-card">
                     <div class="section-title">AI Evaluation</div>
-                    <div class="section-description">
-                        Explanation of the candidate's job-related fit.
-                    </div>
                 """,
                 unsafe_allow_html=True,
             )
 
             st.write(
                 result["explanation"]
-                or "No explanation was provided by the AI model."
+                or "No explanation was returned by the model."
             )
 
             st.markdown("</div>", unsafe_allow_html=True)
@@ -863,47 +665,76 @@ elif page == "Resume Screening":
             """
             <div class="section-card">
                 <div class="section-title">Potential Skill Gaps</div>
-                <div class="section-description">
-                    Requirements that were not clearly demonstrated
-                    in the supplied resume.
-                </div>
             """,
             unsafe_allow_html=True,
         )
 
-        missing_skills = result["missing_skills"]
-
-        if missing_skills:
-            for skill in missing_skills:
-                st.markdown(
-                    f'<span class="skill-chip">{skill}</span>',
-                    unsafe_allow_html=True,
-                )
+        if result["missing_skills"]:
+            for skill in result["missing_skills"]:
+                st.markdown(f"- {skill}")
         else:
-            st.markdown(
-                '<span class="success-chip">'
-                'No potential skill gaps reported'
-                '</span>',
-                unsafe_allow_html=True,
-            )
+            st.success("No potential skill gaps were reported.")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown(
-            """
-            <div class="info-note">
-                This score is an AI-generated estimate, not a validated
-                probability of job success. Missing skills may simply
-                be absent from the resume. Review the evidence and
-                make hiring decisions using appropriate human judgment.
-            </div>
-            """,
-            unsafe_allow_html=True,
+        st.caption(
+            f"Resume: {st.session_state.analysis_resume_name} · "
+            f"Role: {st.session_state.analysis_job_title}"
+        )
+
+        st.info(
+            "The match score is an AI-generated estimate, not a "
+            "validated probability of job success. Review the resume "
+            "and verify job-related qualifications before making "
+            "hiring decisions."
         )
 
 
 # =========================================================
-# HOW IT WORKS PAGE
+# SCREENING HISTORY
+# =========================================================
+
+elif page == "Screening History":
+
+    st.markdown(
+        '<div class="page-title">Screening History</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        '<div class="page-subtitle">'
+        'Review analyses performed during this session.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    if not st.session_state.history:
+        st.info(
+            "No screening history is available yet. Run an analysis "
+            "from the Dashboard first."
+        )
+
+    else:
+        for index, item in enumerate(st.session_state.history, start=1):
+            with st.expander(
+                f"{index}. {item['resume_name']} — "
+                f"{item['match_score']}% match"
+            ):
+                st.write(f"**Job title:** {item['job_title']}")
+                st.write(f"**Match score:** {item['match_score']}%")
+                st.write(f"**AI explanation:** {item['explanation']}")
+
+                st.write("**Potential skill gaps:**")
+
+                if item["missing_skills"]:
+                    for skill in item["missing_skills"]:
+                        st.write(f"- {skill}")
+                else:
+                    st.write("No potential skill gaps reported.")
+
+
+# =========================================================
+# HOW IT WORKS
 # =========================================================
 
 elif page == "How It Works":
@@ -915,7 +746,7 @@ elif page == "How It Works":
 
     st.markdown(
         '<div class="page-subtitle">'
-        'A simple workflow for AI-assisted resume screening.'
+        'Four steps from resume upload to AI-assisted evaluation.'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -924,54 +755,36 @@ elif page == "How It Works":
         (
             "01",
             "Upload the resume",
-            "Upload a PDF, DOCX, or TXT resume, or paste the resume text.",
+            "Upload a PDF, DOCX, or TXT file, or paste the resume text.",
         ),
         (
             "02",
-            "Describe the role",
-            "Enter the job title and the skills, responsibilities, "
-            "and qualifications required.",
+            "Enter job requirements",
+            "Provide the job title and the role's required skills, "
+            "qualifications, and responsibilities.",
         ),
         (
             "03",
-            "Extract and analyze",
-            "Python extracts the resume text and sends the relevant "
-            "content to the configured LLM through Groq.",
+            "AI-assisted comparison",
+            "The application extracts resume text and passes it to "
+            "your configured LLM through the Groq API.",
         ),
         (
             "04",
             "Review the results",
-            "See the estimated match score, potential skill gaps, "
-            "and an explanation of the comparison.",
+            "Examine the match estimate, possible skill gaps, "
+            "and explanation.",
         ),
     ]
 
     for number, title, description in steps:
-
         st.markdown(
             f"""
             <div class="section-card">
-                <div style="display:flex;gap:18px;align-items:flex-start;">
-                    <div style="
-                        min-width:42px;
-                        height:42px;
-                        display:flex;
-                        align-items:center;
-                        justify-content:center;
-                        border-radius:12px;
-                        background:#e9f2ff;
-                        color:#3977e8;
-                        font-weight:800;
-                    ">
-                        {number}
-                    </div>
-                    <div>
-                        <div class="section-title">{title}</div>
-                        <div class="section-description"
-                             style="margin-bottom:0;">
-                            {description}
-                        </div>
-                    </div>
+                <div class="section-title">{number} · {title}</div>
+                <div class="section-subtitle"
+                     style="margin-bottom:0;">
+                    {description}
                 </div>
             </div>
             """,
@@ -979,13 +792,13 @@ elif page == "How It Works":
         )
 
     st.info(
-        "ResumeIQ is designed to support human review. "
-        "Its AI-generated score should not be the sole basis for hiring."
+        "Use the results as decision support, not as the sole basis "
+        "for hiring."
     )
 
 
 # =========================================================
-# ABOUT PAGE
+# ABOUT
 # =========================================================
 
 elif page == "About":
@@ -1006,12 +819,12 @@ elif page == "About":
         """
         <div class="section-card">
             <div class="section-title">Project Overview</div>
-            <p style="color:#596579;font-size:13px;line-height:1.9;">
+            <p>
                 ResumeIQ is an AI-assisted resume screening application
-                that compares candidate resumes with job descriptions.
-                It uses a Large Language Model through the Groq API to
-                generate a match estimate, identify potential skill gaps,
-                and explain the comparison.
+                that compares resume content with job descriptions.
+                It generates a match estimate, identifies possible
+                skill gaps, and provides an explanation using a
+                Large Language Model.
             </p>
         </div>
         """,
@@ -1026,25 +839,22 @@ elif page == "About":
         ("Groq API", "LLM inference"),
         ("PDFPlumber", "PDF text extraction"),
         ("Python-docx", "DOCX text extraction"),
-        ("JSON", "Structured AI responses"),
-        ("GitHub", "Source code management"),
-        ("Streamlit Community Cloud", "Application hosting"),
+        ("GitHub", "Version control"),
+        ("Streamlit Community Cloud", "Deployment"),
     ]
 
-    for technology, purpose in technologies:
+    for technology, description in technologies:
         col1, col2 = st.columns([1, 2])
 
         with col1:
-            st.markdown(f"**{technology}**")
+            st.write(f"**{technology}**")
 
         with col2:
-            st.write(purpose)
+            st.write(description)
 
-    st.markdown("---")
-
-    st.caption(
-        "ResumeIQ is an academic and decision-support project. "
-        "Protect candidate data and verify AI-generated assessments."
+    st.info(
+        "Protect candidate information and verify AI-generated "
+        "assessments before using them."
     )
 
 
