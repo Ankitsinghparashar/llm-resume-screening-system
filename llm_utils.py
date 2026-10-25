@@ -37,14 +37,31 @@ def get_llm_response(resume_text, job_text):
     - Evaluate only job-related qualifications.
     - Do not infer qualifications from personal characteristics.
     """
+import time
 
-    response = client.models.generate_content(
-        model="gemini-3.8-flash",
-        contents=prompt,
-        config={
-            "response_mime_type": "application/json"
-        }
-    )
+response = None
+
+for attempt in range(3):
+    try:
+        response = client.models.generate_content(
+            model="gemini-3.8-flash",
+            contents=prompt,
+            config={
+                "response_mime_type": "application/json"
+            }
+        )
+        break
+
+    except Exception as e:
+        if attempt == 2:
+            raise
+
+        error_message = str(e)
+
+        if "503" in error_message or "UNAVAILABLE" in error_message:
+            time.sleep(2 * (attempt + 1))
+        else:
+            raise
 
     result = json.loads(response.text)
 
