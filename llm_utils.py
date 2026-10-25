@@ -1,52 +1,55 @@
-import ollama
-import json
 import os
+import json
+from google import genai
 
-# Ensure Ollama runs locally
-os.environ["OLLAMA_HOST"] = "http://127.0.0.1:11434"
+def get_llm_response(resume_text, job_text):
+    api_key = os.getenv("GEMINI_API_KEY")
 
-PROMPT_TEMPLATE = """
-You are an AI assistant that evaluates resume-job fit.
+    if not api_key:
+        raise ValueError(
+            "GEMINI_API_KEY is missing. Add it in Streamlit Secrets."
+        )
 
-Be STRICT in evaluation.
-If match_score is below 100, you MUST list at least one missing or partially demonstrated skill.
-Do NOT assume indirect experience.
+    client = genai.Client(api_key=api_key)
 
-Resume:
-{resume}
+    prompt = f"""
+    You are an expert resume screening assistant.
 
-Job Description:
-{job}
+    Compare the resume with the job description.
 
-Return ONLY valid JSON in this format:
+    RESUME:
+    {resume_text}
 
-{{
-  "match_score": <int between 0 and 100>,
-  "missing_skills": ["explicitly required skill not clearly found in resume"],
-  "explanation": "<concise explanation>"
-}}
-"""
+    JOB DESCRIPTION:
+    {job_text}
 
-def get_llm_response(resume_text: str, job_text: str) -> dict:
+    Return ONLY valid JSON in this exact format:
+    {{
+        "match_score": 75,
+        "missing_skills": ["Python", "SQL"],
+        "explanation": "Explain the match and gaps briefly."
+    }}
 
-    prompt = PROMPT_TEMPLATE.format(
-        resume=resume_text,
-        job=job_text
-    )
+    Rules:
+    - match_score must be an integer from 0 to 100.
+    - missing_skills must be a list of skills missing from the resume.
+    - explanation must be a short, clear explanation.
+    - Evaluate only job-related qualifications.
+    - Do not infer qualifications from personal characteristics.
+    """
 
-    response = ollama.chat(
-        model="mistral",
-        messages=[{"role": "user", "content": prompt}],
-        options={"temperature": 0.2}
-    )
-
-    content = response["message"]["content"]
-
-    try:
-        return json.loads(content)
-    except:
-        return {
-            "match_score": 0,
-            "missing_skills": [],
-            "explanation": "Failed to parse LLM response"
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config={
+            "response_mime_type": "application/json"
         }
+    )
+
+    result = json.loads(response.text)
+
+    return {
+        "match_score": int(result.get("match_score", 0)),
+        "missing_skills": result.get("missing_skills", []),
+        "explanation": result.get("explanation", "")
+    }
