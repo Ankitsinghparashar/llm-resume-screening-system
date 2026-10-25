@@ -515,18 +515,11 @@ if page == "Home":
                 )
 
             except Exception as error:
-                print(f"Resume analysis error: {error}")
+                print(f"Resume analysis error: {type(error).__name__}: {error}")
 
-                st.error(
-                    "The analysis could not be completed. "
-                    "Check your Gemini API configuration and app logs."
-                )
-
-                st.caption(
-                    "Check that GEMINI_API_KEY is configured in "
-                    "Streamlit Secrets, the selected Gemini model is "
-                    "available, and your API quota has not been exceeded."
-                )
+                st.error("Resume analysis failed.")
+                st.write("Error type:", type(error).__name__)
+                st.write("Error details:", str(error))
 
 
 # --------------------------------------------------
