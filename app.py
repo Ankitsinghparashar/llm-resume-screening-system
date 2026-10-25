@@ -323,29 +323,23 @@ if page == "Resume Analyzer":
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-    def extract_resume_text(upload):
-        if upload is None:
-            return ""
+    import pdfplumber
 
-        file_bytes = upload.getvalue()
-        filename = upload.name.lower()
+def extract_pdf_text(uploaded_file):
+    try:
+        uploaded_file.seek(0)
 
-        if filename.endswith(".txt"):
-            return file_bytes.decode("utf-8", errors="replace")
+        with pdfplumber.open(uploaded_file) as pdf:
+            pages = []
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    pages.append(text)
 
-        if filename.endswith(".pdf"):
-            with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-                return "\n".join(
-                    page.extract_text() or "" for page in pdf.pages
-                ).strip()
+        return "\n".join(pages).strip()
 
-        if filename.endswith(".docx"):
-            document = Document(BytesIO(file_bytes))
-            paragraphs = [
-                p.text for p in document.paragraphs if p.text.strip()
-            ]
-            return "\n".join(paragraphs).strip()
-
+    except Exception as e:
+        print(f"PDF extraction error: {e}")
         return ""
 
     st.write("")
