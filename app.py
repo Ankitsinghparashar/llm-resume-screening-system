@@ -14,7 +14,24 @@ st.markdown("Evaluate resume compatibility using Local LLM (Mistral via Ollama)"
 col1, col2 = st.columns(2)
 
 with col1:
-    resume_text = st.text_area("📄 Paste Resume", height=400)
+   uploaded_resume = st.file_uploader(
+    "📄 Upload Resume",
+    type=["pdf", "docx", "txt"]
+)
+
+resume_text = ""
+
+if uploaded_resume is not None:
+    if uploaded_resume.name.endswith(".txt"):
+        resume_text = uploaded_resume.getvalue().decode("utf-8")
+    else:
+        st.info("Resume uploaded. PDF/DOCX text extraction needs to be configured.")
+        
+resume_text = st.text_area(
+    "Or Paste Resume",
+    value=resume_text,
+    height=300
+)
 
 with col2:
     job_text = st.text_area("💼 Paste Job Description", height=400)
