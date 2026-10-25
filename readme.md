@@ -1,4 +1,12 @@
- 
+ ## 🚀 Live Demo
+
+**Try ResumeIQ here:** [Open Live Website](https://llm-resume-screening-system-gdkywgykqrqc6q6oskitbs.streamlit.app/)
+
+## 📌 About the Project
+
+ResumeIQ is an LLM-based resume screening system that compares resumes
+with job descriptions, estimates candidate matching scores, and identifies
+missing skills using AI.
 ---
 
  LLM-Powered Resume–Job Fit Evaluator
