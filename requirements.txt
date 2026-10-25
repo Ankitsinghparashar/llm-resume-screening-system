@@ -1,8 +1,4 @@
-pandas
-numpy
-scikit-learn
-tqdm
 streamlit
-datasets
 ollama
-json5
+pdfplumber
+python-docx
